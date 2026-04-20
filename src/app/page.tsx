@@ -1,42 +1,41 @@
 import { AvatarCanvas } from '@/components/avatar/AvatarCanvas'
 import { ChatPanel } from '@/components/chat/ChatPanel'
+import Navbar from '@/components/ui/Navbar'
+import LoadingScreen from '@/components/ui/LoadingScreen'
+import CursorDot from '@/components/ui/CursorDot'
+import MobileTabBar from '@/components/ui/MobileTabBar'
+import Hero from '@/components/sections/Hero'
+import Projects from '@/components/sections/Projects'
+import Skills from '@/components/sections/Skills'
+import About from '@/components/sections/About'
+import Dashboard from '@/components/sections/Dashboard'
+import Stats from '@/components/sections/Stats'
+import HireMe from '@/components/sections/HireMe'
+import CTA from '@/components/sections/CTA'
+import Footer from '@/components/sections/Footer'
 
 export default function Home() {
   return (
-    <main>
-      {/* Avatar — always on screen */}
+    <>
+      <LoadingScreen />
+      <CursorDot />
+      <Navbar />
       <AvatarCanvas />
-
-      {/* Chat panel — opens when avatar clicked */}
       <ChatPanel />
 
-      {/* Portfolio sections — Phase 5 */}
-      <section
-        id="hero"
-        style={{ minHeight: '100vh', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'sans-serif', fontSize: '24px',
-          color: '#8A8A8A'
-        }}
-      >
-        Click the avatar bottom-right → chat opens 👇
-      </section>
+      <main style={{ paddingTop: '64px' }}>
+        <Hero />
+        <Projects />
+        <Skills />
+        <About />
+        <Dashboard />
+        <Stats />
+        <HireMe />
+        <CTA />
+        <Footer />
+      </main>
 
-      <section id="projects" style={{ minHeight: '100vh',
-        background: '#F4F2ED' }}
-      />
-      <section id="skills" style={{ minHeight: '100vh' }} />
-      <section id="about" style={{ minHeight: '100vh',
-        background: '#F4F2ED' }}
-      />
-      <section id="status" style={{ minHeight: '100vh' }} />
-      <section id="stats" style={{ minHeight: '100vh',
-        background: '#0D0D0D' }}
-      />
-      <section id="hire" style={{ minHeight: '100vh' }} />
-      <section id="contact" style={{ minHeight: '100vh',
-        background: '#F4F2ED' }}
-      />
-    </main>
+      <MobileTabBar />
+    </>
   )
 }

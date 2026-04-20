@@ -1,41 +1,67 @@
 @import "tailwindcss";
+@import "../styles/variables.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --orange:    #FF6A00;
+  --cyan:      #00C9C8;
+  --black:     #0D0D0D;
+  --off-white: #F4F2ED;
+  --card-bg:   #FAFAF8;
+  --gray:      #8A8A8A;
+  --green:     #22c55e;
+  --white:     #ffffff;
+  --light-gray: #E8E6E1;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+[data-theme="night"] {
+  --off-white:  #0A0A1A;
+  --card-bg:    #12122A;
+  --white:      #1A1A2E;
+  --black:      #F4F2ED;
+  --gray:       #9A9AB0;
+  --light-gray: #2A2A4A;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-/* Fade out animation for click hint */
-@keyframes fadeOut {
-  from { opacity: 1; transform: translateY(0); }
-  to   { opacity: 0; transform: translateY(-8px); }
+  background: var(--off-white);
+  color: var(--black);
+  font-family: var(--font-sora, sans-serif);
+  cursor: none;
 }
 
-/* Prevent canvas from blocking scroll */
+/* Hide default cursor — CursorDot replaces it */
+@media (pointer: coarse) {
+  body { cursor: auto; }
+}
+
+/* Scroll reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Canvas pointer events */
 canvas {
   pointer-events: none !important;
 }
 
-/* Re-enable clicks only on avatar mesh */
-canvas.avatar-interactive {
-  pointer-events: all !important;
+/* Click hint fade */
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
 }

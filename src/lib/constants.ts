@@ -1,0 +1,5 @@
+export const WHATSAPP_NUMBER = '919639731624'
+export const EMAIL = 'vinayakt9639@gmail.com'
+export const GITHUB = 'https://github.com/Vinayaktiwari18'
+export const LINKEDIN = 'https://linkedin.com/in/vinayak-tiwari1809'
+export const DOMAIN = 'yaar.world'
