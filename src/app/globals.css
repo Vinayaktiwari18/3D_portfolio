@@ -24,3 +24,18 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* Fade out animation for click hint */
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
+}
+
+/* Prevent canvas from blocking scroll */
+canvas {
+  pointer-events: none !important;
+}
+
+/* Re-enable clicks only on avatar mesh */
+canvas.avatar-interactive {
+  pointer-events: all !important;
+}
