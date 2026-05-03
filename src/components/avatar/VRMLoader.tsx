@@ -8,19 +8,23 @@ import { AvatarScene } from './AvatarScene'
 export function VRMLoader() {
   const [vrm, setVrm] = useState<VRM | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [progress, setProgress] = useState(0)
 
   useEffect(() => {
     let cancelled = false
 
     async function load() {
       try {
+        console.log('🔄 Starting VRM load...')
         const loaded = await loadVRM('/avatar/YAAR.vrm')
-        if (!cancelled) setVrm(loaded)
+        if (!cancelled) {
+          console.log('✅ VRM set to state')
+          setVrm(loaded)
+        }
       } catch (err) {
         if (!cancelled) {
-          setError('Failed to load avatar')
-          console.error(err)
+          const msg = err instanceof Error ? err.message : 'Unknown error'
+          console.error('❌ VRM failed:', msg)
+          setError(msg)
         }
       }
     }
@@ -30,7 +34,7 @@ export function VRMLoader() {
   }, [])
 
   if (error) {
-    console.warn('VRM load error:', error)
+    console.error('VRM error state:', error)
     return null
   }
 

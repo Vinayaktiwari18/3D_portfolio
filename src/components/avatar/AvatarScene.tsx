@@ -1,10 +1,9 @@
 'use client'
 
-import { useRef, useEffect, Suspense } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
-import { useAnimations } from '@react-three/drei'
+import { useRef, useEffect, useCallback } from 'react'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { VRM, VRMUtils } from '@pixiv/three-vrm'
+import { VRM } from '@pixiv/three-vrm'
 import { useAvatarState } from '@/hooks/useAvatarState'
 import {
   ANIMATION_MAP,
@@ -13,134 +12,155 @@ import {
 } from '@/lib/animationStates'
 import { loadMixamoAnimation } from '@/lib/mixamoRetarget'
 
-interface AvatarSceneProps {
-  vrm: VRM
-}
+interface Props { vrm: VRM }
 
-export function AvatarScene({ vrm }: AvatarSceneProps) {
+export function AvatarScene({ vrm }: Props) {
   const mixerRef = useRef<THREE.AnimationMixer | null>(null)
   const currentActionRef = useRef<THREE.AnimationAction | null>(null)
-  const clockRef = useRef(new THREE.Clock())
-  const idleTimerRef = useRef<NodeJS.Timeout | null>(null)
-
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const loadingRef = useRef(false)
+  const prevStateRef = useRef<AvatarState | null>(null)
+  const mountedRef = useRef(false)
   const { currentState, setLoaded } = useAvatarState()
-  const { scene } = useThree()
 
-  // Init mixer on mount
-  useEffect(() => {
-    if (!vrm) return
+  const scheduleIdleVariation = useCallback(() => {
+    if (!mountedRef.current) return
+    const delay = 8000 + Math.random() * 4000
 
-    // Add VRM scene to Three.js scene
-    scene.add(vrm.scene)
-    mixerRef.current = new THREE.AnimationMixer(vrm.scene)
+    idleTimerRef.current = setTimeout(async () => {
+      if (!mixerRef.current || !vrm || !mountedRef.current) return
+      const variant =
+        IDLE_VARIANTS[Math.floor(Math.random() * IDLE_VARIANTS.length)]
+      try {
+        const clip = await loadMixamoAnimation(
+          `/animations/${variant}`, vrm
+        )
+        if (!mixerRef.current || !mountedRef.current) return
 
-    // Mark as loaded
-    setLoaded(true)
+        const action = mixerRef.current.clipAction(clip)
+        action.loop = THREE.LoopOnce
+        action.clampWhenFinished = true
+        currentActionRef.current?.crossFadeTo(action, 0.5, true)
+        action.reset().play()
+        currentActionRef.current = action
 
-    // Start with floating animation
-    playAnimation('floating')
-
-    // Random idle variation every 8-12 seconds
-    scheduleIdleVariation()
-
-    return () => {
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current)
+        idleTimerRef.current = setTimeout(() => {
+          if (!mountedRef.current) return
+          loadingRef.current = false
+          scheduleIdleVariation()
+        }, 3500)
+      } catch {
+        if (mountedRef.current) scheduleIdleVariation()
       }
-      mixerRef.current?.stopAllAction()
-      scene.remove(vrm.scene)
-      VRMUtils.deepDispose(vrm.scene)
-    }
+    }, delay)
   }, [vrm])
 
-  // React to state changes from outside
-  useEffect(() => {
-    playAnimation(currentState)
-  }, [currentState])
-
-  // Animation frame update
-  useFrame(() => {
-    const delta = clockRef.current.getDelta()
-    mixerRef.current?.update(delta)
-    vrm?.update(delta)
-  })
-
-  async function playAnimation(
+  const playAnimation = useCallback(async (
     state: AvatarState,
     fadeTime = 0.5
-  ) {
-    const mixer = mixerRef.current
-    if (!mixer || !vrm) return
+  ) => {
+    if (!mixerRef.current || !vrm || !mountedRef.current) return
+    if (loadingRef.current) return
+    loadingRef.current = true
 
     const config = ANIMATION_MAP[state]
     const url = `/animations/${config.file}`
 
     try {
       const clip = await loadMixamoAnimation(url, vrm)
+
+      if (!mixerRef.current || !mountedRef.current) {
+        loadingRef.current = false
+        return
+      }
+
+      const mixer = mixerRef.current
       const newAction = mixer.clipAction(clip)
 
-      // Configure action
       newAction.loop = config.loop
         ? THREE.LoopRepeat
         : THREE.LoopOnce
       newAction.clampWhenFinished = !config.loop
       newAction.timeScale = config.timeScale
+      newAction.enabled = true
+      newAction.paused = false
 
-      // Crossfade from current
-      if (currentActionRef.current) {
-        currentActionRef.current
-          .crossFadeTo(newAction, fadeTime, true)
+      if (
+        currentActionRef.current &&
+        currentActionRef.current !== newAction
+      ) {
+        currentActionRef.current.crossFadeTo(newAction, fadeTime, true)
+      } else {
+        newAction.reset()
       }
 
-      newAction.reset().play()
+      newAction.play()
       currentActionRef.current = newAction
+      loadingRef.current = false
 
-      // Auto return to floating after one-shot anims
+      console.log(`▶️ Playing: ${state} → ${config.file}`)
+
       if (!config.loop && config.duration > 0) {
-        if (idleTimerRef.current) {
-          clearTimeout(idleTimerRef.current)
-        }
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
         idleTimerRef.current = setTimeout(() => {
-          playAnimation('floating')
+          if (!mountedRef.current) return
+          prevStateRef.current = null
+          loadingRef.current = false
+          playAnimation('idle')
           scheduleIdleVariation()
         }, config.duration)
       }
     } catch (err) {
-      console.warn(`Failed to load animation: ${url}`, err)
-      // Fallback to idle
-      if (state !== 'idle') playAnimation('idle')
+      console.warn(`❌ Animation failed: ${url}`, err)
+      loadingRef.current = false
+      if (state !== 'idle' && mountedRef.current) {
+        prevStateRef.current = null
+        playAnimation('idle')
+      }
     }
-  }
+  }, [vrm, scheduleIdleVariation])
 
-  function scheduleIdleVariation() {
-    const delay = 8000 + Math.random() * 4000
-    idleTimerRef.current = setTimeout(async () => {
-      const mixer = mixerRef.current
-      if (!mixer || !vrm) return
+  useEffect(() => {
+    if (!vrm) return
 
-      // Pick random idle variant
-      const variant = IDLE_VARIANTS[
-        Math.floor(Math.random() * IDLE_VARIANTS.length)
-      ]
-      const clip = await loadMixamoAnimation(
-        `/animations/${variant}`,
-        vrm
-      )
-      const action = mixer.clipAction(clip)
-      action.loop = THREE.LoopOnce
-      action.clampWhenFinished = true
-      action.reset().play()
-      currentActionRef.current = action
+    mountedRef.current = true
+    vrm.scene.position.set(0, 0, 0)
+    mixerRef.current = new THREE.AnimationMixer(vrm.scene)
 
-      // Return to floating after variant
-      setTimeout(() => {
-        playAnimation('floating')
-        scheduleIdleVariation()
-      }, 4000)
-    }, delay)
-  }
+    setLoaded(true)
+    console.log('🎬 Mixer created, starting idle...')
 
-  // Avatar is added to scene via useEffect
-  // nothing to render here directly
-  return null
+    const t = setTimeout(() => {
+      if (!mountedRef.current) return
+      playAnimation('idle')
+      setTimeout(() => scheduleIdleVariation(), 1000)
+    }, 200)
+
+    return () => {
+      mountedRef.current = false
+      clearTimeout(t)
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      mixerRef.current?.stopAllAction()
+      mixerRef.current = null
+      loadingRef.current = false
+      prevStateRef.current = null
+      // ✅ NO deepDispose!
+    }
+  }, [vrm, setLoaded, playAnimation, scheduleIdleVariation])
+
+  useEffect(() => {
+    if (!mountedRef.current) return
+    if (prevStateRef.current === currentState) return
+    prevStateRef.current = currentState
+    loadingRef.current = false
+    playAnimation(currentState)
+  }, [currentState, playAnimation])
+
+  useFrame((_, delta) => {
+    if (!mountedRef.current) return
+    mixerRef.current?.update(delta)
+    vrm?.update(delta)
+  })
+
+  return <primitive object={vrm.scene} />
 }

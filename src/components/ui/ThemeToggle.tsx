@@ -1,12 +1,23 @@
 // src/components/ui/ThemeToggle.tsx
 'use client';
 
+import { useSyncExternalStore } from 'react';
+
 type Props = {
   theme: 'day' | 'night';
   onToggle: () => void;
 };
 
+// Empty subscribe — we only need client/server detection
+const subscribe = () => () => {};
+
 export default function ThemeToggle({ theme, onToggle }: Props) {
+  const isClient = useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false
+  );
+
   const isNight = theme === 'night';
 
   return (
@@ -22,20 +33,26 @@ export default function ThemeToggle({ theme, onToggle }: Props) {
         display: 'flex',
         alignItems: 'center',
         gap: '6px',
+        minWidth: '82px',
+        height: '30px',
         transition: 'all 0.2s ease',
       }}
     >
-      <span style={{ fontSize: '14px' }}>{isNight ? '☀️' : '🌙'}</span>
-      <span
-        style={{
-          fontFamily: 'Space Mono, monospace',
-          fontSize: '10px',
-          color: 'var(--gray)',
-          letterSpacing: '0.04em',
-        }}
-      >
-        {isNight ? 'DAY' : 'NIGHT'}
-      </span>
+      {isClient && (
+        <>
+          <span style={{ fontSize: '14px' }}>
+            {isNight ? '☀️' : '🌙'}
+          </span>
+          <span style={{
+            fontFamily: 'Space Mono, monospace',
+            fontSize: '10px',
+            color: 'var(--gray)',
+            letterSpacing: '0.04em',
+          }}>
+            {isNight ? 'DAY' : 'NIGHT'}
+          </span>
+        </>
+      )}
     </button>
   );
 }

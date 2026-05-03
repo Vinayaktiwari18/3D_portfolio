@@ -65,3 +65,32 @@ canvas {
   from { opacity: 1; transform: translateY(0); }
   to   { opacity: 0; transform: translateY(-8px); }
 }
+/* Night theme body */
+[data-theme="night"] body,
+[data-theme="night"] {
+  background: var(--off-white);
+  color: var(--black);
+}
+
+/* Fix canvas always transparent */
+canvas {
+  background: transparent !important;
+  pointer-events: none !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,106,0,0.4);
+  border-radius: 2px;
+}
+
+/* Fix all white outlines in night mode on buttons */
+[data-theme="night"] button,
+[data-theme="night"] a {
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* Avatar canvas always transparent */
+canvas { background: transparent !important; }

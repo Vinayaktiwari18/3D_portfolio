@@ -13,6 +13,7 @@ import Stats from '@/components/sections/Stats'
 import HireMe from '@/components/sections/HireMe'
 import CTA from '@/components/sections/CTA'
 import Footer from '@/components/sections/Footer'
+import ScrollRevealInit from '@/components/ScrollRevealInit'
 
 export default function Home() {
   return (
@@ -24,6 +25,7 @@ export default function Home() {
       <ChatPanel />
 
       <main style={{ paddingTop: '64px' }}>
+        <ScrollRevealInit />
         <Hero />
         <Projects />
         <Skills />
