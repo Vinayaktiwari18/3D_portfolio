@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { VRMLoaderPlugin, VRMUtils, VRM } from '@pixiv/three-vrm'
 
@@ -16,9 +17,17 @@ export async function loadVRM(url: string): Promise<VRM> {
         }
         VRMUtils.removeUnnecessaryVertices(gltf.scene)
         VRMUtils.combineSkeletons(gltf.scene)
-        // ✅ PUT BACK — VRM0 needs this to stand upright
+
+        // Log meta version so we know what we're dealing with
+        const metaVersion = (vrm.meta as any)?.metaVersion
+        console.log('VRM meta version:', metaVersion)
+        console.log('VRM scene rotation before:', vrm.scene.rotation.y)
+
+        // rotateVRM0 only fires if metaVersion === "0"
         VRMUtils.rotateVRM0(vrm)
-        console.log('✅ VRM loaded')
+
+        console.log('VRM scene rotation after rotateVRM0:', vrm.scene.rotation.y)
+
         resolve(vrm)
       },
       (progress) => {

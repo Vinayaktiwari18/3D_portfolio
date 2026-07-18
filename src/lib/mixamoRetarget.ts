@@ -65,16 +65,6 @@ function extractProperty(trackName: string): string {
   return dotIdx !== -1 ? trackName.slice(dotIdx + 1) : ''
 }
 
-// rotateVRM0 applies 180° Y rotation to the VRM scene root
-// So we must apply the SAME rotation to animation tracks
-// This matrix represents Ry(180°):
-// [ -1  0  0  0 ]
-// [  0  1  0  0 ]
-// [  0  0 -1  0 ]
-// [  0  0  0  1 ]
-// For quaternions: conjugate with q180Y = (0, 1, 0, 0)
-const ROT_180Y = new THREE.Quaternion(0, 1, 0, 0)
-
 export async function loadMixamoAnimation(
   url: string,
   vrm: VRM
@@ -100,63 +90,41 @@ export async function loadMixamoAnimation(
           const vrmBoneName = FBX_BONE_TO_VRM[boneName]
           if (!vrmBoneName) continue
 
-          const node = vrm.humanoid.getNormalizedBoneNode(vrmBoneName)
+          // FIX: use the RAW bone node, not the normalized one.
+          // These FBX files share the model's own J_Bip_* skeleton and
+          // rest pose, so they map directly onto the raw hierarchy.
+          // The "normalized" bone space is a synthetic T-pose that only
+          // matches when animation was authored against it — using it
+          // here introduced a rest-pose mismatch on top of the rotation bug.
+          const node = vrm.humanoid.getRawBoneNode(vrmBoneName)
           if (!node) continue
 
           matched++
 
           if (prop === 'quaternion') {
-            const values = new Float32Array(track.values.length)
-            const q = new THREE.Quaternion()
-
-            for (let i = 0; i < track.values.length; i += 4) {
-              q.set(
-                track.values[i],
-                track.values[i + 1],
-                track.values[i + 2],
-                track.values[i + 3]
-              )
-
-              // Apply same 180Y rotation that rotateVRM0 applied
-              // Formula: q_new = ROT_180Y * q * ROT_180Y^-1
-              // Since ROT_180Y is unit quaternion, inverse = conjugate
-              q.premultiply(ROT_180Y)
-                .multiply(ROT_180Y.clone().invert())
-
-              values[i]     = q.x
-              values[i + 1] = q.y
-              values[i + 2] = q.z
-              values[i + 3] = q.w
-            }
-
+            // FIX: no manual 180Y re-application here. VRMUtils.rotateVRM0()
+            // already reorients the whole model once, at the scene root.
+            // Local bone rotations are relative to their parent and are
+            // completely unaffected by that scene-level flip, so re-applying
+            // it per-bone was double-correcting and twisting every joint.
+            // Copy the track values through unchanged.
             tracks.push(new THREE.QuaternionKeyframeTrack(
               `${node.name}.quaternion`,
               track.times,
-              values
+              track.values
             ))
 
           } else if (prop === 'position' && boneName === 'J_Bip_C_Hips') {
             const values = new Float32Array(track.values.length)
-            const v = new THREE.Vector3()
 
-            // Detect scale: VRM uses meters (~0.8-1.2 for hips height)
-            // If first Y value > 5, it's centimeters
+            // Keep the unit-scale detection (cm -> m), that part was fine.
             const sampleY = Math.abs(track.values[1])
             const SCALE = sampleY > 5 ? 0.01 : 1.0
-            console.log(`Hip position scale: ${SCALE} (sample Y=${sampleY.toFixed(3)})`)
 
             for (let i = 0; i < track.values.length; i += 3) {
-              v.set(
-                track.values[i]     * SCALE,
-                track.values[i + 1] * SCALE,
-                track.values[i + 2] * SCALE
-              )
-
-              // Apply 180Y rotation to position too
-              // Ry(180°) * (x, y, z) = (-x, y, -z)
-              values[i]     = -v.x
-              values[i + 1] =  v.y
-              values[i + 2] = -v.z
+              values[i]     = track.values[i]     * SCALE
+              values[i + 1] = track.values[i + 1] * SCALE
+              values[i + 2] = track.values[i + 2] * SCALE
             }
 
             tracks.push(new THREE.VectorKeyframeTrack(
@@ -167,7 +135,7 @@ export async function loadMixamoAnimation(
           }
         }
 
-        console.log(`✅ ${matched} tracks → ${url.split('/').pop()}`)
+        console.log(`✅ ${matched} tracks -> ${url.split('/').pop()}`)
 
         const retargeted = new THREE.AnimationClip(
           clip.name, clip.duration, tracks

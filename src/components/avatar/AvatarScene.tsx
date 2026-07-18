@@ -26,24 +26,19 @@ export function AvatarScene({ vrm }: Props) {
   const scheduleIdleVariation = useCallback(() => {
     if (!mountedRef.current) return
     const delay = 8000 + Math.random() * 4000
-
     idleTimerRef.current = setTimeout(async () => {
       if (!mixerRef.current || !vrm || !mountedRef.current) return
       const variant =
         IDLE_VARIANTS[Math.floor(Math.random() * IDLE_VARIANTS.length)]
       try {
-        const clip = await loadMixamoAnimation(
-          `/animations/${variant}`, vrm
-        )
+        const clip = await loadMixamoAnimation(`/animations/${variant}`, vrm)
         if (!mixerRef.current || !mountedRef.current) return
-
         const action = mixerRef.current.clipAction(clip)
         action.loop = THREE.LoopOnce
         action.clampWhenFinished = true
         currentActionRef.current?.crossFadeTo(action, 0.5, true)
         action.reset().play()
         currentActionRef.current = action
-
         idleTimerRef.current = setTimeout(() => {
           if (!mountedRef.current) return
           loadingRef.current = false
@@ -68,7 +63,6 @@ export function AvatarScene({ vrm }: Props) {
 
     try {
       const clip = await loadMixamoAnimation(url, vrm)
-
       if (!mixerRef.current || !mountedRef.current) {
         loadingRef.current = false
         return
@@ -76,10 +70,7 @@ export function AvatarScene({ vrm }: Props) {
 
       const mixer = mixerRef.current
       const newAction = mixer.clipAction(clip)
-
-      newAction.loop = config.loop
-        ? THREE.LoopRepeat
-        : THREE.LoopOnce
+      newAction.loop = config.loop ? THREE.LoopRepeat : THREE.LoopOnce
       newAction.clampWhenFinished = !config.loop
       newAction.timeScale = config.timeScale
       newAction.enabled = true
@@ -98,8 +89,6 @@ export function AvatarScene({ vrm }: Props) {
       currentActionRef.current = newAction
       loadingRef.current = false
 
-      console.log(`▶️ Playing: ${state} → ${config.file}`)
-
       if (!config.loop && config.duration > 0) {
         if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
         idleTimerRef.current = setTimeout(() => {
@@ -111,7 +100,7 @@ export function AvatarScene({ vrm }: Props) {
         }, config.duration)
       }
     } catch (err) {
-      console.warn(`❌ Animation failed: ${url}`, err)
+      console.warn(`❌ Anim failed: ${url}`, err)
       loadingRef.current = false
       if (state !== 'idle' && mountedRef.current) {
         prevStateRef.current = null
@@ -124,16 +113,35 @@ export function AvatarScene({ vrm }: Props) {
     if (!vrm) return
 
     mountedRef.current = true
-    vrm.scene.position.set(0, 0, 0)
-    mixerRef.current = new THREE.AnimationMixer(vrm.scene)
 
+    // ✅ Reset to origin — rotateVRM0 already positioned correctly
+    vrm.scene.position.set(0, 0, 0)
+
+    mixerRef.current = new THREE.AnimationMixer(vrm.scene)
+    setTimeout(() => {
+      const hips = vrm.humanoid.getNormalizedBoneNode('hips' as any)
+      const head = vrm.humanoid.getNormalizedBoneNode('head' as any)
+      const foot = vrm.humanoid.getNormalizedBoneNode('leftFoot' as any)
+      const hipsPos = new THREE.Vector3()
+      const headPos = new THREE.Vector3()
+      const footPos = new THREE.Vector3()
+      if (hips) hips.getWorldPosition(hipsPos)
+      if (head) head.getWorldPosition(headPos)
+      if (foot) foot.getWorldPosition(footPos)
+      console.log('=== BONE POSITIONS ===')
+      console.log('Hips Y:', hipsPos.y.toFixed(3), '(should be ~0.9)')
+      console.log('Head Y:', headPos.y.toFixed(3), '(should be ~1.6)')
+      console.log('Foot Y:', footPos.y.toFixed(3), '(should be ~0.0)')
+      console.log('Head Z:', headPos.z.toFixed(3), '(negative = facing forward)')
+    }, 2000)
     setLoaded(true)
-    console.log('🎬 Mixer created, starting idle...')
 
     const t = setTimeout(() => {
       if (!mountedRef.current) return
       playAnimation('idle')
-      setTimeout(() => scheduleIdleVariation(), 1000)
+      setTimeout(() => {
+        if (mountedRef.current) scheduleIdleVariation()
+      }, 1000)
     }, 200)
 
     return () => {
@@ -144,7 +152,7 @@ export function AvatarScene({ vrm }: Props) {
       mixerRef.current = null
       loadingRef.current = false
       prevStateRef.current = null
-      // ✅ NO deepDispose!
+      // ✅ NO deepDispose — Strict Mode protection
     }
   }, [vrm, setLoaded, playAnimation, scheduleIdleVariation])
 
@@ -162,5 +170,6 @@ export function AvatarScene({ vrm }: Props) {
     vrm?.update(delta)
   })
 
+  // ✅ Declarative — R3F manages scene
   return <primitive object={vrm.scene} />
 }

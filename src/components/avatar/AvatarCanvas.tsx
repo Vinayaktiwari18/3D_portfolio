@@ -78,9 +78,9 @@ export function AvatarCanvas() {
       }}>
         <Canvas
           camera={{
-            position: [0, 0.9, 4.0],
-            fov: 38,
-            near: 0.1,
+            position: [0, 0.3, 1.2],
+            fov: 40,
+            near: 0.001,
             far: 100,
           }}
           gl={{
@@ -94,26 +94,21 @@ export function AvatarCanvas() {
             height: '100%',
           }}
         >
-          <ambientLight intensity={2.5} />
-          <directionalLight
-            position={[0, 3, 5]}
-            intensity={3}
-          />
-          <directionalLight
-            position={[-2, 2, 2]}
-            intensity={1}
-            color="#FF6A00"
-          />
+          <ambientLight intensity={3} />
+          <directionalLight position={[0, 2, 2]} intensity={3} />
+          <directionalLight position={[-1, 1, 1]} intensity={1} color="#FF6A00" />
 
           <Environment preset="studio" />
 
-          {/* Shift down so upper body centers in view */}
-          <group position={[0, -0.9, 0]}>
+          {/* Character is small: hips=0.236, head=0.787 */}
+          {/* So total height ~1.1 units */}
+          {/* Shift down so head is at center of canvas */}
+          <group position={[0, -0.55, 0]}>
             <ContactShadows
               position={[0, 0, 0]}
-              opacity={0.2}
-              scale={2}
-              blur={1.5}
+              opacity={0.3}
+              scale={1}
+              blur={1}
             />
             <Suspense fallback={null}>
               <VRMLoader />
