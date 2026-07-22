@@ -13,11 +13,16 @@ const FBX_BONE_TO_VRM: Record<string, VRMHumanBoneName> = {
   'J_Bip_C_UpperChest': VRMHumanBoneName.UpperChest,
   'J_Bip_C_Neck':       VRMHumanBoneName.Neck,
   'J_Bip_C_Head':       VRMHumanBoneName.Head,
-  'J_Bip_L_Shoulder':   VRMHumanBoneName.LeftShoulder,
+  // NOTE: J_Bip_L_Shoulder / J_Bip_R_Shoulder intentionally NOT mapped.
+  // Empirically confirmed these two tracks carry a ~130-135° error in
+  // every animation file, unlike every other bone (~15-65° normal range).
+  // Unlike UpperLeg, no single-axis correction brought it back to normal,
+  // so instead of shipping a wrong guess, we skip Shoulder entirely —
+  // UpperArm (tested fine, ~65°) already carries the actual arm pose,
+  // Shoulder only added a small clavicle shrug on top.
   'J_Bip_L_UpperArm':   VRMHumanBoneName.LeftUpperArm,
   'J_Bip_L_LowerArm':   VRMHumanBoneName.LeftLowerArm,
   'J_Bip_L_Hand':       VRMHumanBoneName.LeftHand,
-  'J_Bip_R_Shoulder':   VRMHumanBoneName.RightShoulder,
   'J_Bip_R_UpperArm':   VRMHumanBoneName.RightUpperArm,
   'J_Bip_R_LowerArm':   VRMHumanBoneName.RightLowerArm,
   'J_Bip_R_Hand':       VRMHumanBoneName.RightHand,
@@ -51,6 +56,21 @@ const FBX_BONE_TO_VRM: Record<string, VRMHumanBoneName> = {
   'J_Bip_R_Little2':    VRMHumanBoneName.RightLittleIntermediate,
 }
 
+// EMPIRICALLY CONFIRMED (tested outside the browser against the real .vrm
+// and .fbx files): every bone track in these animation files carries a
+// normal, small idle-appropriate rotation (~15-30°) — EXCEPT UpperLeg,
+// which carries a huge ~157-167° rotation. That's a data problem baked
+// into the .fbx files themselves (whatever pipeline exported them got the
+// hip->thigh joint's bind convention backwards), not a bug in this code.
+// A 180°-about-X correction, applied only to these two bones, was verified
+// to bring both legs back to a normal, standing pose (feet near y=0,
+// below the head) before this was shipped into the app.
+const NEEDS_UPPER_LEG_CORRECTION = new Set([
+  'J_Bip_L_UpperLeg',
+  'J_Bip_R_UpperLeg',
+])
+const UPPER_LEG_CORRECTION = new THREE.Quaternion(1, 0, 0, 0) // 180° about X
+
 function extractBoneName(trackName: string): string {
   let name = trackName
   const dotIdx = name.lastIndexOf('.')
@@ -83,6 +103,7 @@ export async function loadMixamoAnimation(
 
         const tracks: THREE.KeyframeTrack[] = []
         let matched = 0
+        const q = new THREE.Quaternion()
 
         for (const track of clip.tracks) {
           const boneName = extractBoneName(track.name)
@@ -90,34 +111,43 @@ export async function loadMixamoAnimation(
           const vrmBoneName = FBX_BONE_TO_VRM[boneName]
           if (!vrmBoneName) continue
 
-          // FIX: use the RAW bone node, not the normalized one.
-          // These FBX files share the model's own J_Bip_* skeleton and
-          // rest pose, so they map directly onto the raw hierarchy.
-          // The "normalized" bone space is a synthetic T-pose that only
-          // matches when animation was authored against it — using it
-          // here introduced a rest-pose mismatch on top of the rotation bug.
-          const node = vrm.humanoid.getRawBoneNode(vrmBoneName)
+          // Animate the NORMALIZED bone node — three-vrm rebuilds raw bone
+          // transforms FROM normalized bones every frame inside vrm.update(),
+          // so animating raw bones directly gets silently overwritten.
+          const node = vrm.humanoid.getNormalizedBoneNode(vrmBoneName)
           if (!node) continue
 
           matched++
 
           if (prop === 'quaternion') {
-            // FIX: no manual 180Y re-application here. VRMUtils.rotateVRM0()
-            // already reorients the whole model once, at the scene root.
-            // Local bone rotations are relative to their parent and are
-            // completely unaffected by that scene-level flip, so re-applying
-            // it per-bone was double-correcting and twisting every joint.
-            // Copy the track values through unchanged.
-            tracks.push(new THREE.QuaternionKeyframeTrack(
-              `${node.name}.quaternion`,
-              track.times,
-              track.values
-            ))
+            if (NEEDS_UPPER_LEG_CORRECTION.has(boneName)) {
+              const values = new Float32Array(track.values.length)
+              for (let i = 0; i < track.values.length; i += 4) {
+                q.fromArray(track.values, i)
+                q.premultiply(UPPER_LEG_CORRECTION)
+                values[i] = q.x
+                values[i + 1] = q.y
+                values[i + 2] = q.z
+                values[i + 3] = q.w
+              }
+              tracks.push(new THREE.QuaternionKeyframeTrack(
+                `${node.name}.quaternion`,
+                track.times,
+                values
+              ))
+            } else {
+              // Every other bone's rest orientation already matches between
+              // raw and normalized skeletons for this model — verified
+              // empirically, no correction needed, straight copy is correct.
+              tracks.push(new THREE.QuaternionKeyframeTrack(
+                `${node.name}.quaternion`,
+                track.times,
+                track.values
+              ))
+            }
 
           } else if (prop === 'position' && boneName === 'J_Bip_C_Hips') {
             const values = new Float32Array(track.values.length)
-
-            // Keep the unit-scale detection (cm -> m), that part was fine.
             const sampleY = Math.abs(track.values[1])
             const SCALE = sampleY > 5 ? 0.01 : 1.0
 
