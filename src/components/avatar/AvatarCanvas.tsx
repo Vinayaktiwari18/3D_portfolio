@@ -1,86 +1,27 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Environment, ContactShadows } from '@react-three/drei'
-import { useAvatarState } from '@/hooks/useAvatarState'
 import { VRMLoader } from './VRMLoader'
 import { AnimationController } from './AnimationController'
 
 export function AvatarCanvas() {
-  const { openChat, setState, isLoaded } = useAvatarState()
-  const [showHint, setShowHint] = useState(false)
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setShowHint(true), 2000)
-    const t2 = setTimeout(() => setShowHint(false), 7000)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
-  }, [])
-
-  useEffect(() => {
-    if (isLoaded) {
-      setShowHint(true)
-      const t = setTimeout(() => setShowHint(false), 5000)
-      return () => clearTimeout(t)
-    }
-  }, [isLoaded])
-
-  function handleClick() {
-    setState('waving')
-    setTimeout(() => openChat(), 1200)
-  }
-
   return (
     <>
-      {showHint && (
-        <div style={{
-          position: 'fixed',
-          bottom: '320px',
-          right: '12px',
-          background: 'white',
-          border: '1px solid #E8E6E1',
-          borderRadius: '10px 10px 2px 10px',
-          padding: '6px 10px',
-          fontSize: '11px',
-          fontFamily: 'Space Mono, monospace',
-          color: '#8A8A8A',
-          pointerEvents: 'none',
-          zIndex: 60,
-          whiteSpace: 'nowrap',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          animation: 'fadeOut 0.5s ease 4s forwards',
-        }}>
-          tap me! 👆
-        </div>
-      )}
-
-      <div
-        onClick={handleClick}
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          right: 0,
-          width: '200px',
-          height: '380px',
-          zIndex: 52,
-          cursor: 'pointer',
-        }}
-      />
-
       <div style={{
         position: 'fixed',
-        bottom: 0,
-        right: 0,
-        width: '200px',
-        height: '380px',
-        pointerEvents: 'none',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        pointerEvents: 'none', // page underneath stays fully clickable/scrollable
         zIndex: 51,
       }}>
         <Canvas
           camera={{
-            position: [0, 0.3, 1.2],
+            position: [0, 1, 2], // placeholder — AvatarScene overwrites this on load
             fov: 40,
-            near: 0.001,
+            near: 0.01,
             far: 100,
           }}
           gl={{
@@ -92,6 +33,7 @@ export function AvatarCanvas() {
             background: 'transparent',
             width: '100%',
             height: '100%',
+            pointerEvents: 'none', // canvas itself must not block the page either
           }}
         >
           <ambientLight intensity={3} />
@@ -100,20 +42,16 @@ export function AvatarCanvas() {
 
           <Environment preset="studio" />
 
-          {/* Character is small: hips=0.236, head=0.787 */}
-          {/* So total height ~1.1 units */}
-          {/* Shift down so head is at center of canvas */}
-          <group position={[0, -0.55, 0]}>
-            <ContactShadows
-              position={[0, 0, 0]}
-              opacity={0.3}
-              scale={1}
-              blur={1}
-            />
-            <Suspense fallback={null}>
-              <VRMLoader />
-            </Suspense>
-          </group>
+          <ContactShadows
+            position={[0, 0, 0]}
+            opacity={0.3}
+            scale={3}
+            blur={1.5}
+          />
+
+          <Suspense fallback={null}>
+            <VRMLoader />
+          </Suspense>
         </Canvas>
       </div>
 
